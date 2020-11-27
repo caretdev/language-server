@@ -7,16 +7,18 @@ async function main() {
   try {
     // The folder containing the Extension Manifest package.json
     // Passed to `--extensionDevelopmentPath`
-    const extensionDevelopmentPath = path.resolve(__dirname, "../../");
+    const extensionDevelopmentPath = path.resolve(__dirname, "../../../");
 
     // The path to the extension test script
     // Passed to --extensionTestsPath
     const extensionTestsPath = path.resolve(__dirname, "./suite/index");
 
     // The path to the workspace file
-    const workspace = path.resolve("test-fixtures", "test.code-workspace");
+    const workspace = path.resolve(extensionDevelopmentPath, "./test-fixtures/test.code-workspace");
 
-    const vscodeExecutablePath = await downloadAndUnzipVSCode();
+    const version = "stable";
+    // Download VS Code, unzip it
+    const vscodeExecutablePath = await downloadAndUnzipVSCode(version);
     const cliPath = resolveCliPathFromVSCodeExecutablePath(vscodeExecutablePath);
 
     const installExtension = (extId: string) =>
@@ -26,13 +28,31 @@ async function main() {
       });
 
     // Install dependent extensions
-    installExtension("intersystems-community.servermanager");
-    installExtension("intersystems-community.vscode-objectscript");
+    const dependencies = ["intersystems-community.servermanager", "intersystems-community.vscode-objectscript"];
+    dependencies.forEach(installExtension);
 
-    const launchArgs = ["-n", workspace];
+    // disable extensions
+    const disableExtensions = cp
+      .spawnSync(cliPath, ["--list-extensions"], {
+        encoding: "utf-8",
+        stdio: "pipe",
+      })
+      .stdout.split("\n")
+      .filter((el) => !dependencies.includes(el))
+      .filter((el) => el.length)
+      .reduce((r, el) => {
+        r.push("--disable-extension", el);
+        return r;
+      }, []);
 
-    // Download VS Code, unzip it and run the integration test
-    await runTests({ extensionDevelopmentPath, extensionTestsPath, launchArgs });
+    const launchArgs = ["-n", "--verbose", "--disable-gpu", "--log", "trace", ...disableExtensions, workspace];
+    console.log("---------------------");
+    console.log([version, extensionDevelopmentPath, extensionTestsPath, launchArgs]);
+    console.log("---------------------");
+
+    // Run the integration test
+    console.log("runTests");
+    await runTests({ version, extensionDevelopmentPath, extensionTestsPath, launchArgs });
   } catch (err) {
     console.error("Failed to run tests", err);
     process.exit(1);
