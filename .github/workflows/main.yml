@@ -18,7 +18,7 @@ on:
       - released
 jobs:
   build:
-    timeout-minutes: 10
+    timeout-minutes: 15
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -51,16 +51,22 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: 12.x
-      - run: npm install
-      - name: lint
-        if: runner.os == 'Linux'
-        run: npm run lint        
-        continue-on-error: true # TODO: remove after solving all the linting issues
-      - run: npm run compile
-      - name: npm test
-        uses: GabrielBB/xvfb-action@v1.0
-        with:
-          run: npm run test
+      - run: npm ci
+      - if: runner.os == 'Linux'
+        run: |
+          cd ./server/lib/unix/
+          find . -iname '*.so' -exec ldd {} \;
+      # - name: lint
+      #   if: runner.os == 'Linux'
+      #   run: npm run lint        
+      #   continue-on-error: true # TODO: remove after solving all the linting issues
+      # - run: npm run compile
+      # - name: npm test
+      #   run: xvfb-run -a npm test
+      #   if: runner.os == 'Linux'
+      # - name: npm test
+      #   run: npm test
+      #   if: runner.os != 'Linux'
       - name: Build package
         if: runner.os == 'Linux'
         run: |
@@ -151,7 +157,7 @@ jobs:
           git commit -m 'auto bump version with release'
           jq --arg version "$VERSION" '.version = $version' package.json > "$tmp" && mv "$tmp" package.json
           jq '.enableProposedApi = false' package.json > "$tmp" && mv "$tmp" package.json
-          npm install
+          npm ci
           git push
       - name: Build package
         run: |
